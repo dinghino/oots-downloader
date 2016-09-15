@@ -1,5 +1,6 @@
-*.gif
-*.png
 *.pyc
+*.qrc
 .DS_Store
 *.ui
+comics/*.*
+learning

@@ -233,18 +233,17 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
         Setup connection for the UI elements.
         """
-
-        # navigation buttons
-        self.pb_first.clicked.connect(self.go_to_first)
-        self.pb_last.clicked.connect(self.go_to_last)
-        self.pb_next.clicked.connect(self.go_to_next)
-        self.pb_prev.clicked.connect(self.go_to_prev)
+        # actions
+        self.action_first.activated.connect(self.go_to_first)
+        self.action_last.activated.connect(self.go_to_last)
+        self.action_next.activated.connect(self.go_to_next)
+        self.action_prev.activated.connect(self.go_to_prev)
 
         # comboBox change
         self.cb_pages.currentIndexChanged.connect(self.change_page)
 
         # download button
-        self.pb_download.clicked.connect(self.show_download_dialog)
+        self.action_download.activated.connect(self.show_download_dialog)
 
         # Catch signal from downloader
         # TODO: Switch all to signals and move the downloader inside this obj
@@ -284,11 +283,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if current is not last:
             self.cb_pages.setCurrentIndex(current + 1)
-            self.pb_prev.setEnabled(True)
-            self.pb_first.setEnabled(True)
+            self.action_prev.setEnabled(True)
+            self.action_first.setEnabled(True)
         else:
-            self.pb_next.setEnabled(False)
-            self.pb_last.setEnabled(False)
+            self.action_next.setEnabled(False)
+            self.action_last.setEnabled(False)
 
     def go_to_prev(self):
         """
@@ -299,11 +298,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if current is not 1:
             self.cb_pages.setCurrentIndex(current - 1)
-            self.pb_next.setEnabled(True)
-            self.pb_last.setEnabled(True)
+            self.action_next.setEnabled(True)
+            self.action_last.setEnabled(True)
         else:
-            self.pb_prev.setEnabled(False)
-            self.pb_first.setEnabled(False)
+            self.action_prev.setEnabled(False)
+            self.action_first.setEnabled(False)
 
     def go_to_first(self):
         """
@@ -311,10 +310,10 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-        self.pb_prev.setEnabled(False)
-        self.pb_first.setEnabled(False)
-        self.pb_next.setEnabled(True)
-        self.pb_last.setEnabled(True)
+        self.action_prev.setEnabled(False)
+        self.action_first.setEnabled(False)
+        self.action_next.setEnabled(True)
+        self.action_last.setEnabled(True)
 
     def go_to_last(self):
         """
@@ -322,10 +321,10 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
-        self.pb_next.setEnabled(False)
-        self.pb_last.setEnabled(False)
-        self.pb_prev.setEnabled(True)
-        self.pb_first.setEnabled(True)
+        self.action_next.setEnabled(False)
+        self.action_last.setEnabled(False)
+        self.action_prev.setEnabled(True)
+        self.action_first.setEnabled(True)
 
     def change_page(self, index):
         """

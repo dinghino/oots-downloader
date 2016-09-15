@@ -2,7 +2,7 @@
 # encoding: utf-8
 import sys
 from PyQt4.QtGui import QApplication
-from downloader import downloader, interface
+from downloader import interface
 
 
 def main():
