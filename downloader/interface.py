@@ -175,7 +175,9 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         self.pb_abort.setEnabled(True)
 
     def abort(self):
-        self.stop_downloader()
+        """
+        Callback for the abort button click.
+        """
         self.close()
 
     def start_downloader(self):
@@ -190,11 +192,6 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         Stop downloading.
         """
         self.downloader.stop()
-
-        # reset label and progress bar
-        self.label_notifier.setText(QtCore.QString('waiting...'))
-        self.download_progress.setMaximum(100)
-        self.download_progress.setValue(0)
 
 
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
@@ -292,6 +289,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         else:
             self.pb_next.setEnabled(False)
             self.pb_last.setEnabled(False)
+
     def go_to_prev(self):
         """
         Go to the previous page if possible.
@@ -317,6 +315,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.pb_first.setEnabled(False)
         self.pb_next.setEnabled(True)
         self.pb_last.setEnabled(True)
+
     def go_to_last(self):
         """
         Go to the last.
