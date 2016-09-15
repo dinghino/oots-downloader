@@ -2,7 +2,9 @@ from PyQt4 import QtCore, QtGui
 import downloader
 from ui import mainwindow
 import os
+import logging
 
+LOG = logging.getLogger('oots-downloader')
 
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
     def __init__(self, parent=None):
@@ -63,3 +65,5 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
     def change_page(self, index):
         filePath = self.cb_pages.itemData(index).toPyObject()
+
+        LOG.info('Loading page"%s"' % filePath)
