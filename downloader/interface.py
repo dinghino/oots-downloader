@@ -234,16 +234,16 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Setup connection for the UI elements.
         """
         # actions
-        self.action_first.activated.connect(self.go_to_first)
-        self.action_last.activated.connect(self.go_to_last)
-        self.action_next.activated.connect(self.go_to_next)
-        self.action_prev.activated.connect(self.go_to_prev)
+        self.action_first.triggered.connect(self.go_to_first)
+        self.action_last.triggered.connect(self.go_to_last)
+        self.action_next.triggered.connect(self.go_to_next)
+        self.action_prev.triggered.connect(self.go_to_prev)
 
         # comboBox change
         self.cb_pages.currentIndexChanged.connect(self.change_page)
 
         # download button
-        self.action_download.activated.connect(self.show_download_dialog)
+        self.action_download.triggered.connect(self.show_download_dialog)
 
         # Catch signal from downloader
         # TODO: Switch all to signals and move the downloader inside this obj
