@@ -36,9 +36,9 @@ class Downloader(QtCore.QThread):
         comic_to_download = last_available - last_downloaded
         self.emit(self.download_start, comic_to_download)
 
-        log.warn('Beginning download... last comic downloaded: %s, latest: %s'
-                 ', to download: %s' % (last_downloaded, last_available,
-                                        last_available - last_downloaded))
+        log.info('Beginning download... last comic downloaded: %s, latest: %s'
+                 ', to download: %s' % (last_downloaded -1, last_available,
+                                        last_available - last_downloaded - 1))
 
         # while self._isRunning is True and we haven't reached the end of the
         # available comic pages keep downloading and saving the images
@@ -53,7 +53,7 @@ class Downloader(QtCore.QThread):
             downloader.save_image(img, fileName)
 
             # notify in the logger
-            log.warn('New comic available: %s' % fileName)
+            log.info('New comic available: %s' % fileName)
 
             # notify that a new file is available to other app components
             self.emit(self.new_comic, fileName)
@@ -63,7 +63,7 @@ class Downloader(QtCore.QThread):
         self.terminate()
         self.emit(self.download_stop)
 
-        log.warn('Download interrupted by the user.')
+        log.info('Download interrupted by the user.')
 
 
 class Viewer(QtGui.QLabel):
