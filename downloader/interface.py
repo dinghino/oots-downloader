@@ -72,7 +72,10 @@ class Viewer(QtGui.QLabel):
         self.setFrameStyle(QtGui.QFrame.StyledPanel)
         self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         self.setup()
+
         self.image = img
+        self._imageWidth = None
+        self._imageHeight = None
 
     def setup(self):
         self.setBackgroundRole(QtGui.QPalette.Base)
@@ -189,6 +192,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
+        # wether the first or last image are shown. Used to update the UI
+        # elements
+        self._isLastShowing = True
+        self._isFirstShowing = True
+
         self.filename_regex = downloader._img_filename
 
         self.downloader = Downloader(self)
@@ -208,6 +216,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.viewer = Viewer(None, parent=self.image_scrollArea)
+        self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
         self.image_scrollArea.setWidget(self.viewer)
 
     def setupConnection(self):
@@ -259,16 +268,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Go to the next page if possible.
         """
 
-        current = self.cb_pages.currentIndex()
-        last = self.cb_pages.count() - 1
+        current = self.cb_pages.currentIndex() + 1
+        last = self.cb_pages.count()
 
         if current is not last:
-            self.cb_pages.setCurrentIndex(current + 1)
-            self.action_prev.setEnabled(True)
-            self.action_first.setEnabled(True)
-        else:
-            self.action_next.setEnabled(False)
-            self.action_last.setEnabled(False)
+            self.cb_pages.setCurrentIndex(current)
+
+        self._update_actions()
 
     def go_to_prev(self):
         """
@@ -277,13 +283,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         current = self.cb_pages.currentIndex()
 
-        if current is not 1:
+        if current is not 0:
+            print 'current in prev: %s' % current
             self.cb_pages.setCurrentIndex(current - 1)
-            self.action_next.setEnabled(True)
-            self.action_last.setEnabled(True)
-        else:
-            self.action_prev.setEnabled(False)
-            self.action_first.setEnabled(False)
+
+        self._update_actions()
 
     def go_to_first(self):
         """
@@ -291,10 +295,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-        self.action_prev.setEnabled(False)
-        self.action_first.setEnabled(False)
-        self.action_next.setEnabled(True)
-        self.action_last.setEnabled(True)
+        self._update_actions()
 
     def go_to_last(self):
         """
@@ -302,10 +303,29 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
-        self.action_next.setEnabled(False)
-        self.action_last.setEnabled(False)
-        self.action_prev.setEnabled(True)
-        self.action_first.setEnabled(True)
+        self._update_actions()
+
+    def _update_actions(self):
+        """
+        Update the navigation elements depending on what images is currently
+        shown.
+        """
+
+        # evaluate current page and last page counts
+        current = self.cb_pages.currentIndex() + 1
+        last = self.cb_pages.count()
+
+        # update the view status
+        self._isLastShowing = current == last
+        self._isFirstShowing = current == 1
+
+        # update the ui elements
+        self.action_next.setEnabled(not self._isLastShowing)
+        self.action_last.setEnabled(not self._isLastShowing)
+
+        self.action_prev.setEnabled(not self._isFirstShowing)
+        self.action_first.setEnabled(not self._isFirstShowing)
+
 
     def change_page(self, index):
         """
@@ -316,9 +336,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
-            pic = QtGui.QPixmap(filePath)
-            pic = pic.scaledToHeight(self.frameGeometry().width())
-
             self.viewer.changeImage(filePath)
 
     def show_download_dialog(self):
