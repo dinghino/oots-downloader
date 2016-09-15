@@ -120,7 +120,6 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         self.setupConnection()
 
     def setupConnection(self):
-        self.pb_pause_restart.clicked.connect(self.pause)
         self.pb_abort.clicked.connect(self.abort)
 
         self.connect(self.downloader,
@@ -135,6 +134,11 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
                      self.downloader.new_comic,
                      self.on_download_new_comic)
 
+    def hideEvent(self, event):
+        """Override the default close event to also stop the downloader. """
+        self.stop_downloader()
+        event.accept()
+
     def on_download_start(self, total):
         """
         Called when the downloader starts to download and pass the total pages
@@ -143,7 +147,6 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         """
         self._total = total
         self._current = 0
-        self.change_btn_label('&Pause')
         self.pb_abort.setEnabled(True)
         # update the values for the progress bar
         self.download_progress.setMaximum(total)
@@ -169,22 +172,11 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         """
         Called when the download finishes to download.
         """
-        self.change_btn_label('&Resume')
         self.pb_abort.setEnabled(True)
-        pass
-
-    def pause(self):
-        if self.downloader._isRunning is True:
-            self.stop_downloader()
-        else:
-            self.start_downloader()
 
     def abort(self):
         self.stop_downloader()
         self.close()
-
-    def change_btn_label(self, string):
-        self.pb_pause_restart.setText(string)
 
     def start_downloader(self):
         """

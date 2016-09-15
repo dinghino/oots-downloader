@@ -45,16 +45,9 @@ class Ui_dialog_downloading(object):
         self.verticalLayout.addWidget(self.download_progress)
         spacerItem = QtGui.QSpacerItem(20, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
         self.verticalLayout.addItem(spacerItem)
-        self.horizontalLayout = QtGui.QHBoxLayout()
-        self.horizontalLayout.setContentsMargins(-1, 8, 0, -1)
-        self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
-        self.pb_pause_restart = QtGui.QPushButton(dialog_downloading)
-        self.pb_pause_restart.setObjectName(_fromUtf8("pb_pause_restart"))
-        self.horizontalLayout.addWidget(self.pb_pause_restart)
         self.pb_abort = QtGui.QPushButton(dialog_downloading)
         self.pb_abort.setObjectName(_fromUtf8("pb_abort"))
-        self.horizontalLayout.addWidget(self.pb_abort)
-        self.verticalLayout.addLayout(self.horizontalLayout)
+        self.verticalLayout.addWidget(self.pb_abort)
 
         self.retranslateUi(dialog_downloading)
         QtCore.QMetaObject.connectSlotsByName(dialog_downloading)
@@ -62,6 +55,5 @@ class Ui_dialog_downloading(object):
     def retranslateUi(self, dialog_downloading):
         dialog_downloading.setWindowTitle(_translate("dialog_downloading", "Downloading new comics...", None))
         self.label_notifier.setText(_translate("dialog_downloading", "notifier", None))
-        self.pb_pause_restart.setText(_translate("dialog_downloading", "&Pause", None))
         self.pb_abort.setText(_translate("dialog_downloading", "&Abort", None))
 
