@@ -69,40 +69,38 @@ class Downloader(QtCore.QThread):
 class Viewer(QtGui.QLabel):
     def __init__(self, img, parent=None):
         super(Viewer, self).__init__(parent)
-        self.setFrameStyle(QtGui.QFrame.StyledPanel)
-        self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+        self.setup()
         try:
-            self.pixmap = QtGui.QPixmap(img)
+            self.image = QtGui.QImage(img)
         except:
-            log.error('Error in creating the image')
+            self.image = None
 
-    def paintEvent(self, event):
-        """
-        Paint and scale comic pixmap correctly.
-        """
+        self._imageWidth = None
+        self._imageHeight = None
 
-        try:
-            size = self.size()
-            painter = QtGui.QPainter(self)
-            point = QtCore.QPoint(0, 0)
+    def setup(self):
+        self.setBackgroundRole(QtGui.QPalette.Base)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
+                                       QtGui.QSizePolicy.Ignored)
 
-            pix = self.pixmap.scaled(
-                size,
-                QtCore.Qt.KeepAspectRatio,
-                transformMode=QtCore.Qt.SmoothTransformation)
+        sizePolicy.setHeightForWidth(True)
 
-            point.setX((size.width() - pix.width()) / 2)
-            point.setX((size.height() - pix.height()) / 2)
+        self.setSizePolicy(sizePolicy)
 
-            painter.drawPixmap(point, pix)
-        except AttributeError:
-            # If no images are present in /comics this event will raise an
-            # AttributeError in self.pixmap. catch it and do nothing...
-            pass
+        self.setScaledContents(True)
 
-    def changePage(self, img):
-        self.pixmap = QtGui.QPixmap(img)  # change the source for the pixmap
-        self.repaint()  # will trigger paintEvent
+    def change_image(self, img):
+        self.image = QtGui.QImage(img)
+
+        if self.image.isNull():
+            QtGui.QMessageBox.information(self, "Error with the image...",
+                                          "Cannot load %s." % img)
+
+            log.error('Error in creating the image: %s' % img)
+
+        self.setPixmap(QtGui.QPixmap.fromImage(self.image))
+
+        self.repaint()
 
 
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
@@ -117,9 +115,9 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         self._total = 0
         self._current = 0
 
-        self.setupConnection()
+        self.setup_connection()
 
-    def setupConnection(self):
+    def setup_connection(self):
         self.pb_abort.clicked.connect(self.abort)
 
         self.connect(self.downloader,
@@ -173,6 +171,7 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         Called when the download finishes to download.
         """
         self.pb_abort.setEnabled(True)
+        self.close()
 
     def abort(self):
         """
@@ -199,6 +198,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
+        # wether the first or last image are shown. Used to update the UI
+        # elements
+        self._isLastShowing = True
+        self._isFirstShowing = True
+
         self.filename_regex = downloader._img_filename
 
         self.downloader = Downloader(self)
@@ -207,7 +211,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         # create the image viewer label
         self._createViewer()
         # setup UI connections with the logic
-        self.setupConnection()
+        self.setup_connection()
 
         # generate the combo box content
         self.generate_list()
@@ -217,19 +221,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Create an instance of the custom QLabel widget.
         """
 
-        self.viewer = Viewer(None, parent=self)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred,
-                                       QtGui.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(1)
-        sizePolicy.setHeightForWidth(
-            self.viewer.sizePolicy().hasHeightForWidth())
+        self.viewer = Viewer(None, parent=self.image_scrollArea)
+        self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
+        self.image_scrollArea.setWidget(self.viewer)
 
-        self.viewer.setSizePolicy(sizePolicy)
-        # add at the beginning of the the vertical layout
-        self.verticalLayout.insertWidget(0, self.viewer)
-
-    def setupConnection(self):
+    def setup_connection(self):
         """
         Setup connection for the UI elements.
         """
@@ -278,16 +274,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Go to the next page if possible.
         """
 
-        current = self.cb_pages.currentIndex()
-        last = self.cb_pages.count() - 1
+        current = self.cb_pages.currentIndex() + 1
+        last = self.cb_pages.count()
 
         if current is not last:
-            self.cb_pages.setCurrentIndex(current + 1)
-            self.action_prev.setEnabled(True)
-            self.action_first.setEnabled(True)
-        else:
-            self.action_next.setEnabled(False)
-            self.action_last.setEnabled(False)
+            self.cb_pages.setCurrentIndex(current)
+
+        self._update_actions()
 
     def go_to_prev(self):
         """
@@ -296,13 +289,10 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         current = self.cb_pages.currentIndex()
 
-        if current is not 1:
+        if current is not 0:
             self.cb_pages.setCurrentIndex(current - 1)
-            self.action_next.setEnabled(True)
-            self.action_last.setEnabled(True)
-        else:
-            self.action_prev.setEnabled(False)
-            self.action_first.setEnabled(False)
+
+        self._update_actions()
 
     def go_to_first(self):
         """
@@ -310,10 +300,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-        self.action_prev.setEnabled(False)
-        self.action_first.setEnabled(False)
-        self.action_next.setEnabled(True)
-        self.action_last.setEnabled(True)
+        self._update_actions()
 
     def go_to_last(self):
         """
@@ -321,10 +308,28 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
-        self.action_next.setEnabled(False)
-        self.action_last.setEnabled(False)
-        self.action_prev.setEnabled(True)
-        self.action_first.setEnabled(True)
+        self._update_actions()
+
+    def _update_actions(self):
+        """
+        Update the navigation elements depending on what images is currently
+        shown.
+        """
+
+        # evaluate current page and last page counts
+        current = self.cb_pages.currentIndex() + 1
+        last = self.cb_pages.count()
+
+        # update the view status
+        self._isLastShowing = current == last
+        self._isFirstShowing = current == 1
+
+        # update the ui elements
+        self.action_next.setEnabled(not self._isLastShowing)
+        self.action_last.setEnabled(not self._isLastShowing)
+
+        self.action_prev.setEnabled(not self._isFirstShowing)
+        self.action_first.setEnabled(not self._isFirstShowing)
 
     def change_page(self, index):
         """
@@ -335,10 +340,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
-            pic = QtGui.QPixmap(filePath)
-            pic = pic.scaledToHeight(self.frameGeometry().width())
+            self.viewer.change_image(filePath)
 
-            self.viewer.changePage(filePath)
+        self.adjust_scrollbars(self.image_scrollArea.verticalScrollBar(), 1)
+
+    def adjust_scrollbars(self, scrollbar, factor):
+        scrollbar.setValue(int(factor * scrollbar.value()
+                               + ((factor - 1) * scrollbar.pageStep() / 2)))
 
     def show_download_dialog(self):
         """
