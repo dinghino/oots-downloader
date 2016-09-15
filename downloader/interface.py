@@ -71,38 +71,27 @@ class Viewer(QtGui.QLabel):
         super(Viewer, self).__init__(parent)
         self.setFrameStyle(QtGui.QFrame.StyledPanel)
         self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-        try:
-            self.pixmap = QtGui.QPixmap(img)
-        except:
-            log.error('Error in creating the image')
+        self.setup()
+        self.image = img
 
-    def paintEvent(self, event):
-        """
-        Paint and scale comic pixmap correctly.
-        """
+    def setup(self):
+        self.setBackgroundRole(QtGui.QPalette.Base)
+        self.setSizePolicy(QtGui.QSizePolicy.Ignored,
+                           QtGui.QSizePolicy.Ignored)
 
-        try:
-            size = self.size()
-            painter = QtGui.QPainter(self)
-            point = QtCore.QPoint(0, 0)
+        self.setScaledContents(True)
 
-            pix = self.pixmap.scaled(
-                size,
-                QtCore.Qt.KeepAspectRatio,
-                transformMode=QtCore.Qt.SmoothTransformation)
+    def changeImage(self, img):
+        image = QtGui.QImage(img)
 
-            point.setX((size.width() - pix.width()) / 2)
-            point.setX((size.height() - pix.height()) / 2)
+        if image.isNull():
+            QtGui.QMessageBox.information(self, "Error with the image...",
+                                          "Cannot load %s." % img)
 
-            painter.drawPixmap(point, pix)
-        except AttributeError:
-            # If no images are present in /comics this event will raise an
-            # AttributeError in self.pixmap. catch it and do nothing...
-            pass
+            log.error('Error in creating the image: %s' % img)
 
-    def changePage(self, img):
-        self.pixmap = QtGui.QPixmap(img)  # change the source for the pixmap
-        self.repaint()  # will trigger paintEvent
+        self.setPixmap(QtGui.QPixmap.fromImage(image))
+        self.repaint()
 
 
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
@@ -173,6 +162,7 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         Called when the download finishes to download.
         """
         self.pb_abort.setEnabled(True)
+        self.close()
 
     def abort(self):
         """
@@ -217,19 +207,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Create an instance of the custom QLabel widget.
         """
 
-        self.viewer = Viewer(None, parent=self)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Ignored,
-                                       QtGui.QSizePolicy.Ignored)
-        # sizePolicy.setHorizontalStretch(0)
-        # sizePolicy.setVerticalStretch(1)
-        # sizePolicy.setHeightForWidth(
-        #     self.viewer.sizePolicy().hasHeightForWidth())
-        #
-        # self.viewer.setSizePolicy(sizePolicy)
-
-        self.viewer.setScaledContents(True)
-        self.viewer.setBackgroundRole(QtGui.QPalette.Base)
-
+        self.viewer = Viewer(None, parent=self.image_scrollArea)
         self.image_scrollArea.setWidget(self.viewer)
 
     def setupConnection(self):
@@ -341,7 +319,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
             pic = QtGui.QPixmap(filePath)
             pic = pic.scaledToHeight(self.frameGeometry().width())
 
-            self.viewer.changePage(filePath)
+            self.viewer.changeImage(filePath)
 
     def show_download_dialog(self):
         """
