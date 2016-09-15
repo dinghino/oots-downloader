@@ -218,16 +218,19 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.viewer = Viewer(None, parent=self)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred,
-                                       QtGui.QSizePolicy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(1)
-        sizePolicy.setHeightForWidth(
-            self.viewer.sizePolicy().hasHeightForWidth())
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Ignored,
+                                       QtGui.QSizePolicy.Ignored)
+        # sizePolicy.setHorizontalStretch(0)
+        # sizePolicy.setVerticalStretch(1)
+        # sizePolicy.setHeightForWidth(
+        #     self.viewer.sizePolicy().hasHeightForWidth())
+        #
+        # self.viewer.setSizePolicy(sizePolicy)
 
-        self.viewer.setSizePolicy(sizePolicy)
-        # add at the beginning of the the vertical layout
-        self.verticalLayout.insertWidget(0, self.viewer)
+        self.viewer.setScaledContents(True)
+        self.viewer.setBackgroundRole(QtGui.QPalette.Base)
+
+        self.image_scrollArea.setWidget(self.viewer)
 
     def setupConnection(self):
         """
