@@ -37,7 +37,7 @@ class Downloader(QtCore.QThread):
         self.emit(self.download_start, comic_to_download)
 
         log.info('Beginning download... last comic downloaded: %s, latest: %s'
-                 ', to download: %s' % (last_downloaded -1, last_available,
+                 ', to download: %s' % (last_downloaded - 1, last_available,
                                         last_available - last_downloaded - 1))
 
         # while self._isRunning is True and we haven't reached the end of the
