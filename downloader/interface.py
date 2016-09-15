@@ -69,31 +69,37 @@ class Downloader(QtCore.QThread):
 class Viewer(QtGui.QLabel):
     def __init__(self, img, parent=None):
         super(Viewer, self).__init__(parent)
-        self.setFrameStyle(QtGui.QFrame.StyledPanel)
-        self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         self.setup()
+        try:
+            self.image = QtGui.QImage(img)
+        except:
+            self.image = None
 
-        self.image = img
         self._imageWidth = None
         self._imageHeight = None
 
     def setup(self):
         self.setBackgroundRole(QtGui.QPalette.Base)
-        self.setSizePolicy(QtGui.QSizePolicy.Ignored,
-                           QtGui.QSizePolicy.Ignored)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
+                                       QtGui.QSizePolicy.Ignored)
+
+        sizePolicy.setHeightForWidth(True)
+
+        self.setSizePolicy(sizePolicy)
 
         self.setScaledContents(True)
 
-    def changeImage(self, img):
-        image = QtGui.QImage(img)
+    def change_image(self, img):
+        self.image = QtGui.QImage(img)
 
-        if image.isNull():
+        if self.image.isNull():
             QtGui.QMessageBox.information(self, "Error with the image...",
                                           "Cannot load %s." % img)
 
             log.error('Error in creating the image: %s' % img)
 
-        self.setPixmap(QtGui.QPixmap.fromImage(image))
+        self.setPixmap(QtGui.QPixmap.fromImage(self.image))
+
         self.repaint()
 
 
@@ -109,9 +115,9 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         self._total = 0
         self._current = 0
 
-        self.setupConnection()
+        self.setup_connection()
 
-    def setupConnection(self):
+    def setup_connection(self):
         self.pb_abort.clicked.connect(self.abort)
 
         self.connect(self.downloader,
@@ -205,7 +211,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         # create the image viewer label
         self._createViewer()
         # setup UI connections with the logic
-        self.setupConnection()
+        self.setup_connection()
 
         # generate the combo box content
         self.generate_list()
@@ -219,7 +225,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
         self.image_scrollArea.setWidget(self.viewer)
 
-    def setupConnection(self):
+    def setup_connection(self):
         """
         Setup connection for the UI elements.
         """
@@ -334,7 +340,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
-            self.viewer.changeImage(filePath)
+            self.viewer.change_image(filePath)
+
+        self.adjust_scrollbars(self.image_scrollArea.verticalScrollBar(), 1)
+
+    def adjust_scrollbars(self, scrollbar, factor):
+        scrollbar.setValue(int(factor * scrollbar.value()
+                               + ((factor - 1) * scrollbar.pageStep() / 2)))
 
     def show_download_dialog(self):
         """
