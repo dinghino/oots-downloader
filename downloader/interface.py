@@ -2,9 +2,10 @@ from PyQt4 import QtGui, QtCore
 import downloader
 from ui import mainwindow, dialog
 import os
+
 import logging
 
-LOG = logging.getLogger('oots-downloader')
+log = logging.getLogger('oots-downloader')
 
 
 class Downloader(QtCore.QThread):
@@ -13,6 +14,7 @@ class Downloader(QtCore.QThread):
         self._isRunning = False
         self.parent = parent
 
+        # signals
         self.download_start = QtCore.SIGNAL('download_start(int)')
         self.new_comic = QtCore.SIGNAL('new_comic_available(QString)')
         self.download_stop = QtCore.SIGNAL('download_stop()')
@@ -25,28 +27,35 @@ class Downloader(QtCore.QThread):
 
         last_downloaded, last = downloader.get_range(directory='./comics')
 
-        # last downloaded file
-        current = last_downloaded + 1
-
-        LOG.info('last downloaded: %s, downloading %s more'
-                 % (current, (last + 1) - current))
+        # handle indexes for strings
+        last_downloaded = last_downloaded + 1
+        last_available = last + 1
 
         # notify the start of the download
         # with the total amount of files to download
-        comic_to_download = (last + 1) - (last_downloaded + 1)
+        comic_to_download = last_available - last_downloaded
         self.emit(self.download_start, comic_to_download)
+
+        log.warn('Beginning download... last comic downloaded: %s, latest: %s'
+                 ', to download: %s' % (last_downloaded, last_available,
+                                        last_available - last_downloaded))
 
         # while self._isRunning is True and we haven't reached the end of the
         # available comic pages keep downloading and saving the images
-        for i in range(last_downloaded + 1, last + 1):
+        for i in range(last_downloaded, last_available):
             if self._isRunning is False:
+                # stop the cycle if the user call for a stop.
                 break
 
+            # get the image from the website and save it locally
             img, ext = downloader.get_image(i)
             fileName = 'oots%04d%s' % (i, ext)
             downloader.save_image(img, fileName)
 
-            # notify that a new file is available
+            # notify in the logger
+            log.warn('New comic available: %s' % fileName)
+
+            # notify that a new file is available to other app components
             self.emit(self.new_comic, fileName)
 
     def stop(self):
@@ -54,7 +63,7 @@ class Downloader(QtCore.QThread):
         self.terminate()
         self.emit(self.download_stop)
 
-        LOG.info('Download interrupted by the user.')
+        log.warn('Download interrupted by the user.')
 
 
 class Viewer(QtGui.QLabel):
@@ -62,28 +71,34 @@ class Viewer(QtGui.QLabel):
         super(Viewer, self).__init__(parent)
         self.setFrameStyle(QtGui.QFrame.StyledPanel)
         self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-        if img is not None:
+        try:
             self.pixmap = QtGui.QPixmap(img)
+        except:
+            log.error('Error in creating the image')
 
     def paintEvent(self, event):
         """
         Paint and scale comic pixmap correctly.
         """
 
-        if self.pixmap is None:
-            return
+        try:
+            size = self.size()
+            painter = QtGui.QPainter(self)
+            point = QtCore.QPoint(0, 0)
 
-        size = self.size()
-        painter = QtGui.QPainter(self)
-        point = QtCore.QPoint(0, 0)
+            pix = self.pixmap.scaled(
+                size,
+                QtCore.Qt.KeepAspectRatio,
+                transformMode=QtCore.Qt.SmoothTransformation)
 
-        pix = self.pixmap.scaled(size, QtCore.Qt.KeepAspectRatio,
-                                 transformMode=QtCore.Qt.SmoothTransformation)
+            point.setX((size.width() - pix.width()) / 2)
+            point.setX((size.height() - pix.height()) / 2)
 
-        point.setX((size.width() - pix.width()) / 2)
-        point.setX((size.height() - pix.height()) / 2)
-
-        painter.drawPixmap(point, pix)
+            painter.drawPixmap(point, pix)
+        except AttributeError:
+            # If no images are present in /comics this event will raise an
+            # AttributeError in self.pixmap. catch it and do nothing...
+            pass
 
     def changePage(self, img):
         self.pixmap = QtGui.QPixmap(img)  # change the source for the pixmap
@@ -94,31 +109,30 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
     """
     QDialog that will handle the downloder functionality.
     """
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, downloaderThread=None):
         super(Dialog, self).__init__(parent)
         self.setupUi(self)
-        self.thread = Downloader(self)
+        self.downloader = downloaderThread
 
         self._total = 0
         self._current = 0
 
         self.setupConnection()
-        self.downloading = False
 
     def setupConnection(self):
         self.pb_pause_restart.clicked.connect(self.pause)
-        self.pb_abort.clicked.connect(self.stop)
+        self.pb_abort.clicked.connect(self.abort)
 
-        self.connect(self.thread,
-                     self.thread.download_start,
+        self.connect(self.downloader,
+                     self.downloader.download_start,
                      self.on_download_start)
 
-        self.connect(self.thread,
-                     self.thread.download_stop,
+        self.connect(self.downloader,
+                     self.downloader.download_stop,
                      self.on_download_stop)
 
-        self.connect(self.thread,
-                     self.thread.new_comic,
+        self.connect(self.downloader,
+                     self.downloader.new_comic,
                      self.on_download_new_comic)
 
     def on_download_start(self, total):
@@ -160,26 +174,35 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         pass
 
     def pause(self):
-        if self.thread._isRunning is True:
-            self.stop()
+        if self.downloader._isRunning is True:
+            self.stop_downloader()
         else:
-            self.start()
+            self.start_downloader()
+
+    def abort(self):
+        self.stop_downloader()
+        self.close()
 
     def change_btn_label(self, string):
         self.pb_pause_restart.setText(string)
 
-    def start(self):
+    def start_downloader(self):
         """
         Start downloading new comics if needed and stop when there aren't more
         to download or stopped by the user.
         """
-        self.thread.start()
+        self.downloader.start()
 
-    def stop(self):
+    def stop_downloader(self):
         """
         Stop downloading.
         """
-        self.thread.stop()
+        self.downloader.stop()
+
+        # reset label and progress bar
+        self.label_notifier.setText(QtCore.QString('waiting...'))
+        self.download_progress.setMaximum(100)
+        self.download_progress.setValue(0)
 
 
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
@@ -187,8 +210,10 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
-        self.downloader = downloader
-        self.dialog = Dialog(self)
+        self.filename_regex = downloader._img_filename
+
+        self.downloader = Downloader(self)
+        self.dialog = Dialog(self, downloaderThread=self.downloader)
 
         # create the image viewer label
         self._createViewer()
@@ -234,8 +259,8 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         # Catch signal from downloader
         # TODO: Switch all to signals and move the downloader inside this obj
-        self.connect(self.dialog.thread,
-                     self.dialog.thread.new_comic,
+        self.connect(self.downloader,
+                     self.downloader.new_comic,
                      self.on_new_comic_available)
 
     def generate_list(self):
@@ -244,16 +269,21 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         the combo box.
         """
         self.cb_pages.clear()
-        regex = downloader._img_filename
-
         for fName in os.listdir('./comics/'):
             # for each file add an item with the number of the page as display
             # text and the file path as itemData
-            self.cb_pages.addItem(regex.match(fName).group(1),
-                                  './comics/%s' % fName)
+            self.add_item_to_list(fName)
+
+        self.go_to_last()
+
+    def add_item_to_list(self, fName):
+        """
+        Add one item to the combobox list and sort the items.
+        """
+        self.cb_pages.addItem(self.filename_regex.match(fName).group(1),
+                              './comics/%s' % fName)
 
         self.cb_pages.model().sort(0)
-        self.go_to_last()
 
     def go_to_next(self):
         """
@@ -298,7 +328,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         filePath = self.cb_pages.itemData(index).toPyObject()
 
         if filePath is not None:
-            LOG.info('Loading page"%s"' % filePath)
+            log.info('Loading page"%s"' % filePath)
             pic = QtGui.QPixmap(filePath)
             pic = pic.scaledToHeight(self.frameGeometry().width())
 
@@ -308,12 +338,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
         Check for new comics and download if available.
         """
+        self.downloader.start()
         self.dialog.show()
 
-    def on_new_comic_available(self, string):
+    def on_new_comic_available(self, fName):
         """Update the list when new comics are downloaded.
-        a string containing the new item is passed but for now is not used here.
-        Later we'll add a function to just add new items to the combobox instead
-        of regenerating the whole list that will use that string.
+        a string containing the new item is passed but for now is not used
+        here. Later we'll add a function to just add new items to the combobox
+        instead of regenerating the whole list that will use that string.
         """
-        self.generate_list()
+        self.add_item_to_list(fName)
