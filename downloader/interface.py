@@ -8,11 +8,14 @@ LOG = logging.getLogger('oots-downloader')
 
 
 class Downloader(QtCore.QThread):
-
     def __init__(self, parent=None):
-        QtCore.QThread.__init__(self)
+        QtCore.QThread.__init__(self, parent)
         self._isRunning = False
         self.parent = parent
+
+        self.download_start = QtCore.SIGNAL('download_start(int)')
+        self.new_comic = QtCore.SIGNAL('new_comic_available(QString)')
+        self.download_stop = QtCore.SIGNAL('download_stop()')
 
     def __del__(self):
         self.wait()
@@ -31,7 +34,7 @@ class Downloader(QtCore.QThread):
         # notify the start of the download
         # with the total amount of files to download
         comic_to_download = (last + 1) - (last_downloaded + 1)
-        self.emit(QtCore.SIGNAL('download_start'), comic_to_download)
+        self.emit(self.download_start, comic_to_download)
 
         # while self._isRunning is True and we haven't reached the end of the
         # available comic pages keep downloading and saving the images
@@ -40,15 +43,16 @@ class Downloader(QtCore.QThread):
                 break
 
             img, ext = downloader.get_image(i)
-            downloader.save_image(img, 'oots%04d%s' % (i, ext))
+            fileName = 'oots%04d%s' % (i, ext)
+            downloader.save_image(img, fileName)
 
             # notify that a new file is available
-            self.emit(QtCore.SIGNAL('new_comic'))
+            self.emit(self.new_comic, fileName)
 
     def stop(self):
         self._isRunning = False
         self.terminate()
-        self.emit(QtCore.SIGNAL('download_stop'))
+        self.emit(self.download_stop)
 
         LOG.info('Download interrupted by the user.')
 
@@ -93,42 +97,45 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
     def __init__(self, parent=None):
         super(Dialog, self).__init__(parent)
         self.setupUi(self)
-        self.setupConnection()
         self.thread = Downloader(self)
+
+        self._total = 0
+        self._current = 0
+
+        self.setupConnection()
         self.downloading = False
 
     def setupConnection(self):
         self.pb_pause_restart.clicked.connect(self.pause)
         self.pb_abort.clicked.connect(self.stop)
 
-        # self.connect(self.thread,
-        #              QtCore.SIGNAL('download_start'),
-        #              self.on_download_start)
-        #
-        # self.connect(self.thread,
-        #              QtCore.SIGNAL('new_comic'),
-        #              self.on_download_new_comic)
-        #
-        # self.connect(self.thread,
-        #              QtCore.SIGNAL('download_stop'),
-        #              self.on_download_stop)
+        self.connect(self.thread,
+                     self.thread.download_start,
+                     self.on_download_start)
 
-    # @QtCore.pyqtSlot(int)
+        self.connect(self.thread,
+                     self.thread.download_stop,
+                     self.on_download_stop)
+
+        self.connect(self.thread,
+                     self.thread.new_comic,
+                     self.on_download_new_comic)
+
     def on_download_start(self, total):
         """
         Called when the downloader starts to download and pass the total pages
         to download.
         Will handle the initial setup for the progress bar.
         """
-        print total
+        self._total = total
+        self._current = 0
         self.change_btn_label('&Pause')
-
+        self.pb_abort.setEnabled(True)
         # update the values for the progress bar
         self.download_progress.setMaximum(total)
         self.download_progress.setValue(0)
 
-    # @QtCore.pyqtSlot()
-    def on_download_new_comic(self):
+    def on_download_new_comic(self, fileName):
         """
         Called when the downloader has downloaded a new comic. Will handle the
         progress bar update.
@@ -136,15 +143,20 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
 
         # update the progress bar
         self.download_progress.setValue(self.download_progress.value() + 1)
-        # TODO: catch signal in MainWindow to update the list
+        self._current += 1
+
+        # compile the label for the dialog
+        new_label = '[%s/%s] %s' % (self._current, self._total, fileName)
+
+        self.label_notifier.setText(QtCore.QString(new_label))
         pass
 
-    # @QtCore.pyqtSlot()
     def on_download_stop(self):
         """
         Called when the download finishes to download.
         """
         self.change_btn_label('&Resume')
+        self.pb_abort.setEnabled(True)
         pass
 
     def pause(self):
@@ -220,12 +232,18 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         # download button
         self.pb_download.clicked.connect(self.show_download_dialog)
 
+        # Catch signal from downloader
+        # TODO: Switch all to signals and move the downloader inside this obj
+        self.connect(self.dialog.thread,
+                     self.dialog.thread.new_comic,
+                     self.on_new_comic_available)
+
     def generate_list(self):
         """
         Generate the list of the currently available comics and add them to
         the combo box.
         """
-
+        self.cb_pages.clear()
         regex = downloader._img_filename
 
         for fName in os.listdir('./comics/'):
@@ -279,14 +297,23 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
         filePath = self.cb_pages.itemData(index).toPyObject()
 
-        LOG.info('Loading page"%s"' % filePath)
-        pic = QtGui.QPixmap(filePath)
-        pic = pic.scaledToHeight(self.frameGeometry().width())
+        if filePath is not None:
+            LOG.info('Loading page"%s"' % filePath)
+            pic = QtGui.QPixmap(filePath)
+            pic = pic.scaledToHeight(self.frameGeometry().width())
 
-        self.viewer.changePage(filePath)
+            self.viewer.changePage(filePath)
 
     def show_download_dialog(self):
         """
         Check for new comics and download if available.
         """
         self.dialog.show()
+
+    def on_new_comic_available(self, string):
+        """Update the list when new comics are downloaded.
+        a string containing the new item is passed but for now is not used here.
+        Later we'll add a function to just add new items to the combobox instead
+        of regenerating the whole list that will use that string.
+        """
+        self.generate_list()
