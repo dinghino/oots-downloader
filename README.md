@@ -41,7 +41,7 @@ TODO
 ====
 
 * [ ] Fix image position
-* [ ] Move controls into a proper toolbar with icons
+* [ ] Make the image zoomable and pannable
+* [x] Move controls into a proper toolbar with icons
 * [ ] Add notification for when there are no new comics to download
 * [ ] Add multithreading support to speed up the download.
-* [ ] Make the image zoomable and pannable
