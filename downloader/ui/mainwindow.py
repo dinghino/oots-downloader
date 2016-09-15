@@ -79,6 +79,7 @@ class Ui_MainWindow(object):
         sizePolicy.setHeightForWidth(self.cb_pages.sizePolicy().hasHeightForWidth())
         self.cb_pages.setSizePolicy(sizePolicy)
         self.cb_pages.setSizeIncrement(QtCore.QSize(2, 0))
+        self.cb_pages.setEditable(False)
         self.cb_pages.setInsertPolicy(QtGui.QComboBox.InsertAlphabetically)
         self.cb_pages.setObjectName(_fromUtf8("cb_pages"))
         self.verticalLayout.addWidget(self.cb_pages)

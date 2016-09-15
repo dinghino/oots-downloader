@@ -287,7 +287,11 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if current is not last:
             self.cb_pages.setCurrentIndex(current + 1)
-
+            self.pb_prev.setEnabled(True)
+            self.pb_first.setEnabled(True)
+        else:
+            self.pb_next.setEnabled(False)
+            self.pb_last.setEnabled(False)
     def go_to_prev(self):
         """
         Go to the previous page if possible.
@@ -295,8 +299,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         current = self.cb_pages.currentIndex()
 
-        if current is not 0:
+        if current is not 1:
             self.cb_pages.setCurrentIndex(current - 1)
+            self.pb_next.setEnabled(True)
+            self.pb_last.setEnabled(True)
+        else:
+            self.pb_prev.setEnabled(False)
+            self.pb_first.setEnabled(False)
 
     def go_to_first(self):
         """
@@ -304,13 +313,20 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-
+        self.pb_prev.setEnabled(False)
+        self.pb_first.setEnabled(False)
+        self.pb_next.setEnabled(True)
+        self.pb_last.setEnabled(True)
     def go_to_last(self):
         """
         Go to the last.
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
+        self.pb_next.setEnabled(False)
+        self.pb_last.setEnabled(False)
+        self.pb_prev.setEnabled(True)
+        self.pb_first.setEnabled(True)
 
     def change_page(self, index):
         """
@@ -320,7 +336,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         filePath = self.cb_pages.itemData(index).toPyObject()
 
         if filePath is not None:
-            log.info('Loading page"%s"' % filePath)
+            log.debug('Loading page"%s"' % filePath)
             pic = QtGui.QPixmap(filePath)
             pic = pic.scaledToHeight(self.frameGeometry().width())
 
