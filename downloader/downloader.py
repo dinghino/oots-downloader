@@ -9,7 +9,7 @@ import logging
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s:%(levelname)s -> %(message)s',
+    format='%(asctime)s: %(levelname)s -> %(message)s',
 )
 log = logging.getLogger('oots-downloader')
 
@@ -44,24 +44,24 @@ def get_range(homepage='http://www.giantitp.com/Comics.html', directory='.'):
                 r'<A href="/comics/oots(\d+)\.html" class="SideBar">',
                 p).group(1))
 
-            log.info('Latest available comic index: %d', _l)
+            log.debug('Latest available comic index: %d', _l)
             return _l
         except:
             log.error('Error: can\'t find the latest comic url')
             raise
 
     def _last_downloaded(directory):
-        log.debug('Seraching for the latest downloaded comic index')
+        log.debug('Searching for the latest downloaded comic index')
         try:
             _downloaded = filter(
                 lambda x: _img_filename.match(x),
-                os.listdir(directory))[-1]
+                sorted(os.listdir(directory)))[-1]
 
             _downloaded = int(_img_filename.match(_downloaded).group(1))
-            log.info('Latest downloaded comic index: %d', _downloaded)
+            log.debug('Latest downloaded comic index: %d', _downloaded)
         except IndexError:
             _downloaded = 0
-            log.info('No comic is available, starting from the first one')
+            log.debug('No comic is available, starting from the first one')
         return _downloaded
 
     return _last_downloaded(directory), _latest(homepage)
@@ -78,9 +78,9 @@ def get_image(n):
         return 'http://www.giantitp.com' + _img_url_regex.search(page).group(1)
 
     img_url = _get_img_url(_get_comic_page(n))
-    log.info('Downloading "%s"', img_url)
+    log.debug('Downloading "%s"', img_url)
     img = open_page(img_url)
-    log.info('Download finished')
+    log.debug('Download finished')
     return img, os.path.splitext(img_url)[1]
 
 
@@ -88,16 +88,17 @@ def save_image(img, filename):
     """
     Save the image into file "filename".
     """
-    log.info('Writing %s', filename)
+    log.debug('Writing %s', filename)
     open('./comics/' + filename, 'w').write(img)
-    log.info('%s written', filename)
+    log.debug('%s written', filename)
 
 
-def run():
+def main():
+    logging.basicConfig(level=logging.DEBUG)
     last_downloaded, last = get_range(directory='./comics')
     for i in range(last_downloaded + 1, last + 1):
         img, ext = get_image(i)
         save_image(img, 'oots%04d%s' % (i, ext))
 
 if __name__ == '__main__':
-    run()
+    main()
