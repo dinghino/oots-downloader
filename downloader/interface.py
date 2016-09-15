@@ -7,6 +7,52 @@ import logging
 LOG = logging.getLogger('oots-downloader')
 
 
+class Downloader(QtCore.QThread):
+
+    def __init__(self, parent=None):
+        QtCore.QThread.__init__(self)
+        self._isRunning = False
+        self.parent = parent
+
+    def __del__(self):
+        self.wait()
+
+    def run(self):
+        self._isRunning = True
+
+        last_downloaded, last = downloader.get_range(directory='./comics')
+
+        # last downloaded file
+        current = last_downloaded + 1
+
+        LOG.info('last downloaded: %s, downloading %s more'
+                 % (current, (last + 1) - current))
+
+        # notify the start of the download
+        # with the total amount of files to download
+        comic_to_download = (last + 1) - (last_downloaded + 1)
+        self.emit(QtCore.SIGNAL('download_start'), comic_to_download)
+
+        # while self._isRunning is True and we haven't reached the end of the
+        # available comic pages keep downloading and saving the images
+        for i in range(last_downloaded + 1, last + 1):
+            if self._isRunning is False:
+                break
+
+            img, ext = downloader.get_image(i)
+            downloader.save_image(img, 'oots%04d%s' % (i, ext))
+
+            # notify that a new file is available
+            self.emit(QtCore.SIGNAL('new_comic'))
+
+    def stop(self):
+        self._isRunning = False
+        self.terminate()
+        self.emit(QtCore.SIGNAL('download_stop'))
+
+        LOG.info('Download interrupted by the user.')
+
+
 class Viewer(QtGui.QLabel):
     def __init__(self, img, parent=None):
         super(Viewer, self).__init__(parent)
@@ -48,53 +94,80 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         super(Dialog, self).__init__(parent)
         self.setupUi(self)
         self.setupConnection()
+        self.thread = Downloader(self)
         self.downloading = False
 
     def setupConnection(self):
         self.pb_pause_restart.clicked.connect(self.pause)
         self.pb_abort.clicked.connect(self.stop)
 
-    def pause(self):
-        if self.downloading is True:
-            self.pb_pause_restart.setText('&Pause')
-            self.stop()
+        # self.connect(self.thread,
+        #              QtCore.SIGNAL('download_start'),
+        #              self.on_download_start)
+        #
+        # self.connect(self.thread,
+        #              QtCore.SIGNAL('new_comic'),
+        #              self.on_download_new_comic)
+        #
+        # self.connect(self.thread,
+        #              QtCore.SIGNAL('download_stop'),
+        #              self.on_download_stop)
 
+    # @QtCore.pyqtSlot(int)
+    def on_download_start(self, total):
+        """
+        Called when the downloader starts to download and pass the total pages
+        to download.
+        Will handle the initial setup for the progress bar.
+        """
+        print total
+        self.change_btn_label('&Pause')
+
+        # update the values for the progress bar
+        self.download_progress.setMaximum(total)
+        self.download_progress.setValue(0)
+
+    # @QtCore.pyqtSlot()
+    def on_download_new_comic(self):
+        """
+        Called when the downloader has downloaded a new comic. Will handle the
+        progress bar update.
+        """
+
+        # update the progress bar
+        self.download_progress.setValue(self.download_progress.value() + 1)
+        # TODO: catch signal in MainWindow to update the list
+        pass
+
+    # @QtCore.pyqtSlot()
+    def on_download_stop(self):
+        """
+        Called when the download finishes to download.
+        """
+        self.change_btn_label('&Resume')
+        pass
+
+    def pause(self):
+        if self.thread._isRunning is True:
+            self.stop()
         else:
-            self.pb_pause_restart.setText('&Resume')
             self.start()
+
+    def change_btn_label(self, string):
+        self.pb_pause_restart.setText(string)
 
     def start(self):
         """
         Start downloading new comics if needed and stop when there aren't more
         to download or stopped by the user.
         """
-        # FIXME: Since I'm dumb... this need another thread to run into or else
-        # everything will freeze..
-        # TODO: Create QThread class for the downloader
-        self.downloading = True
-
-        last_downloaded, last = downloader.get_range(directory='./comics')
-
-        # rng = range(last_downloaded + 1, last + 1)
-        current = last_downloaded + 1
-        LOG.info('last downloaded: %s, downloading %s more'
-                 % (current, last + 1))
-
-        while self.downloading is True:
-            if current == last + 1:
-                break
-
-            img, ext = downloader.get_image(current)
-            downloader.save_image(img, 'oots%04d%s' % (current, ext))
-            current + 1
-            LOG.info('going next')
+        self.thread.start()
 
     def stop(self):
         """
         Stop downloading.
         """
-        self.downloading = False
-        LOG.info('Download interrupted by the user.')
+        self.thread.stop()
 
 
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
