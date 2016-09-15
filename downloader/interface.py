@@ -1,6 +1,6 @@
 from PyQt4 import QtGui, QtCore
 import downloader
-from ui import mainwindow
+from ui import mainwindow, dialog
 import os
 import logging
 
@@ -40,11 +40,23 @@ class Viewer(QtGui.QLabel):
         self.repaint()  # will trigger paintEvent
 
 
+class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
+    def __init__(self, parent=None):
+        super(Dialog, self).__init__(parent)
+        self.setupUi(self)
+
+
+
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
-        self.createViewer()
+
+        self.downloader = downloader
+        self.dialog = Dialog()
+        # create the image viewer label
+        # will add self.viewer
+        self._createViewer()
         self.setupConnection()
 
         self.generate_list()
@@ -79,6 +91,9 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         # comboBox change
         self.cb_pages.currentIndexChanged.connect(self.change_page)
+
+        # download button
+        self.pb_download.clicked.connect(self.show_download_dialog)
 
     def generate_list(self):
         """
@@ -144,3 +159,9 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         pic = pic.scaledToHeight(self.frameGeometry().width())
 
         self.viewer.changePage(filePath)
+
+    def show_download_dialog(self):
+        """
+        Check for new comics and download if available.
+        """
+        self.dialog.show()
