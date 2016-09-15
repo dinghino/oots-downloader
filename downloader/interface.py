@@ -284,7 +284,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         current = self.cb_pages.currentIndex()
 
         if current is not 0:
-            print 'current in prev: %s' % current
             self.cb_pages.setCurrentIndex(current - 1)
 
         self._update_actions()
@@ -325,7 +324,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         self.action_prev.setEnabled(not self._isFirstShowing)
         self.action_first.setEnabled(not self._isFirstShowing)
-
 
     def change_page(self, index):
         """
