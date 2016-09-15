@@ -11,7 +11,7 @@ class Viewer(QtGui.QLabel):
     def __init__(self, img, parent=None):
         super(Viewer, self).__init__(parent)
         self.setFrameStyle(QtGui.QFrame.StyledPanel)
-        self.setAlignment(QtCore.Qt.AlignCenter | QtCore.Qt.AlignVCenter)
+        self.setAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
         if img is not None:
             self.pixmap = QtGui.QPixmap(img)
 
@@ -41,10 +41,60 @@ class Viewer(QtGui.QLabel):
 
 
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
+    """
+    QDialog that will handle the downloder functionality.
+    """
     def __init__(self, parent=None):
         super(Dialog, self).__init__(parent)
         self.setupUi(self)
+        self.setupConnection()
+        self.downloading = False
 
+    def setupConnection(self):
+        self.pb_pause_restart.clicked.connect(self.pause)
+        self.pb_abort.clicked.connect(self.stop)
+
+    def pause(self):
+        if self.downloading is True:
+            self.pb_pause_restart.setText('&Pause')
+            self.stop()
+
+        else:
+            self.pb_pause_restart.setText('&Resume')
+            self.start()
+
+    def start(self):
+        """
+        Start downloading new comics if needed and stop when there aren't more
+        to download or stopped by the user.
+        """
+        # FIXME: Since I'm dumb... this need another thread to run into or else
+        # everything will freeze..
+        # TODO: Create QThread class for the downloader
+        self.downloading = True
+
+        last_downloaded, last = downloader.get_range(directory='./comics')
+
+        # rng = range(last_downloaded + 1, last + 1)
+        current = last_downloaded + 1
+        LOG.info('last downloaded: %s, downloading %s more'
+                 % (current, last + 1))
+
+        while self.downloading is True:
+            if current == last + 1:
+                break
+
+            img, ext = downloader.get_image(current)
+            downloader.save_image(img, 'oots%04d%s' % (current, ext))
+            current + 1
+            LOG.info('going next')
+
+    def stop(self):
+        """
+        Stop downloading.
+        """
+        self.downloading = False
+        LOG.info('Download interrupted by the user.')
 
 
 class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
@@ -53,12 +103,14 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.setupUi(self)
 
         self.downloader = downloader
-        self.dialog = Dialog()
+        self.dialog = Dialog(self)
+
         # create the image viewer label
-        # will add self.viewer
         self._createViewer()
+        # setup UI connections with the logic
         self.setupConnection()
 
+        # generate the combo box content
         self.generate_list()
 
     def _createViewer(self):
