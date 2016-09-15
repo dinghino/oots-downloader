@@ -39,6 +39,7 @@ class Ui_dialog_downloading(object):
         self.label_notifier.setObjectName(_fromUtf8("label_notifier"))
         self.verticalLayout.addWidget(self.label_notifier)
         self.download_progress = QtGui.QProgressBar(dialog_downloading)
+        self.download_progress.setMaximum(100)
         self.download_progress.setProperty("value", 0)
         self.download_progress.setObjectName(_fromUtf8("download_progress"))
         self.verticalLayout.addWidget(self.download_progress)
