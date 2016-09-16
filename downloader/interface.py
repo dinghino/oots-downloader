@@ -66,80 +66,6 @@ class Downloader(QtCore.QThread):
         log.info('Download interrupted by the user.')
 
 
-class Viewer(QtGui.QLabel):
-
-    scaleChanged = QtCore.SIGNAL('scaleChanged()')
-
-    def __init__(self, img, parent=None):
-        super(Viewer, self).__init__(parent)
-        self.setup()
-        try:
-            self.image = QtGui.QImage(img)
-        except:
-            self.image = None
-
-        self._scaleFactor = 1.0
-
-        self.connect(self, self.scaleChanged, self._scaleImage)
-
-    @property
-    def scaleFactor(self):
-        return self._scaleFactor
-
-    @scaleFactor.setter
-    def scaleFactor(self, multiplier):
-        """
-        Multiply the current scale factor by the given value and emit a signal
-        that the scale has changed.
-        """
-        self._scaleFactor *= multiplier
-
-        self.emit(self.scaleChanged)
-
-    def setup(self):
-        self.setBackgroundRole(QtGui.QPalette.Base)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
-                                       QtGui.QSizePolicy.Expanding)
-
-        sizePolicy.setHeightForWidth(True)
-
-        self.setSizePolicy(sizePolicy)
-
-        # self.setScaledContents(True)
-
-    def _scaleImage(self):
-        """
-        Scale the image by self.scaleFactor value.
-        """
-        print self.size() * self.scaleFactor
-        self.resize(self.size() * self.scaleFactor)
-
-        print 'Scale of the images needs to change to %s\n%s'\
-              % (self.scaleFactor, self.image.size())
-
-    def resizeEvent(self, event):
-        print 'resizing %s' % event
-        self.setPixmap(self.comic_pixmap.scaled(
-            self.width(), self.height(),
-            QtCore.Qt.KeepAspectRatioByExpanding
-        ))
-
-    def change_image(self, img):
-        self.image = QtGui.QImage(img)
-
-        if self.image.isNull():
-            QtGui.QMessageBox.information(self, "Error with the image...",
-                                          "Cannot load %s." % img)
-
-            log.error('Error in creating the image: %s' % img)
-
-        self.comic_pixmap = QtGui.QPixmap.fromImage(self.image)
-
-        self.setPixmap(self.comic_pixmap)
-
-        self.repaint()
-
-
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
     """
     QDialog that will handle the downloder functionality.
@@ -235,14 +161,22 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
+        self.image_scrollArea.setAlignment(QtCore.Qt.AlignHCenter)
+
         # wether the first or last image are shown. Used to update the UI
         # elements
         self._isLastShowing = True
         self._isFirstShowing = True
 
+        # scale factor for the image
+        self.scaleFactor = 1.0
+
+        # regex for filename of the comic pages
         self.filename_regex = downloader._img_filename
 
+        # instance of the downloader QThread object
         self.downloader = Downloader(self)
+        # downloader dialog
         self.dialog = Dialog(self, downloaderThread=self.downloader)
 
         # create the image viewer label
@@ -258,9 +192,16 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Create an instance of the custom QLabel widget.
         """
 
-        self.viewer = Viewer(None, parent=self.image_scrollArea)
+        self.imageLabel = QtGui.QLabel()
+        self.imageLabel.setAlignment(QtCore.Qt.AlignHCenter)
+
+        self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)
+        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.Ignored,
+                                      QtGui.QSizePolicy.Ignored)
+        # self.imageLabel.setScaledContents(True)
+
         self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
-        self.image_scrollArea.setWidget(self.viewer)
+        self.image_scrollArea.setWidget(self.imageLabel)
 
     def setup_connection(self):
         """
@@ -354,13 +295,18 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
         Ask the image to zoom in.
         """
-        self.viewer.scaleFactor = 1.25
+        self.scaleImage(1.25)
 
     def image_zoom_out(self):
         """
         Ask the image to zoom in.
         """
-        self.viewer.scaleFactor = 0.8
+        self.scaleImage(0.8)
+
+    def scaleImage(self, factor):
+        self.scaleFactor *= factor
+        self.imageLabel.resize(
+            self.scaleFactor * self.imageLabel.pixmap().size())
 
     def _update_nav_buttons(self):
         """
@@ -392,9 +338,46 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
-            self.viewer.change_image(filePath)
+
+            self.image = QtGui.QImage(filePath)
+
+            # set the min size of the image relative to the wrapper
+            width, height = self.adjust_page_size()
+            self.imageLabel.setMinimumSize(QtCore.QSize(width, height))
+            self.imageLabel.setMaximumSize(
+                QtCore.QSize(self.image.width(), self.image.height()))
+
+            self.imageLabel.setScaledContents(True)
+
+            self.imageLabel.setPixmap(QtGui.QPixmap.fromImage(self.image))
+            self.imageLabel.adjustSize()
+            self.scaleFactor = 1.0
 
         self.adjust_scrollbars(self.image_scrollArea.verticalScrollBar(), 1)
+
+    def adjust_page_size(self):
+        """
+        Adjust the page image size into the scroll area wrapper, keeping the
+        correct aspect ratio and return the new width and height values.
+        Setting the sizes on the imageLabel should cause the image to be as
+        large as the widget and the length to be proportional and scrollable if
+        needed.
+
+        :returns: (width, heigth)
+        """
+
+        image = self.image
+        wrapperWidth = self.image_scrollArea.size().width()
+
+        imageWidth = float(image.width())
+        imageHeight = float(image.height())
+
+        newHeight = wrapperWidth * float(imageHeight / imageWidth)
+
+        newHeight = newHeight if newHeight < imageHeight else imageHeight
+        newWidth = wrapperWidth if wrapperWidth < imageWidth else imageWidth
+
+        return (newWidth, newHeight)
 
     def adjust_scrollbars(self, scrollbar, factor):
         scrollbar.setValue(int(factor * scrollbar.value()
@@ -414,3 +397,19 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         instead of regenerating the whole list that will use that string.
         """
         self.add_item_to_list(fName)
+
+    def resizeEvent(self, event):
+        super(MainWindow, self).resizeEvent(event)
+        self.adjust_page_size()
+
+if __name__ == '__main__':
+    from PyQt4.QtGui import QApplication
+    import sys
+
+    def main():
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
+
+    main()
