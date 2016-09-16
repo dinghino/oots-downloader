@@ -40,8 +40,10 @@ To navigate the images you can use the directional keys or the buttons:
 TODO
 ====
 
-* [ ] Fix image position
-* [ ] Make the image zoomable and pannable
+* [x] Fix image position
 * [x] Move controls into a proper toolbar with icons
+* [ ] Add controls to zoom and pan comic
+* [ ] Make the comic page zoomable and pannable
+* [ ] Add check for new comics in main view
 * [ ] Add notification for when there are no new comics to download
 * [ ] Add multithreading support to speed up the download.
