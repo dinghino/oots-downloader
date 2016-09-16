@@ -67,6 +67,9 @@ class Downloader(QtCore.QThread):
 
 
 class Viewer(QtGui.QLabel):
+
+    scaleChanged = QtCore.SIGNAL('scaleChanged()')
+
     def __init__(self, img, parent=None):
         super(Viewer, self).__init__(parent)
         self.setup()
@@ -75,19 +78,51 @@ class Viewer(QtGui.QLabel):
         except:
             self.image = None
 
-        self._imageWidth = None
-        self._imageHeight = None
+        self._scaleFactor = 1.0
+
+        self.connect(self, self.scaleChanged, self._scaleImage)
+
+    @property
+    def scaleFactor(self):
+        return self._scaleFactor
+
+    @scaleFactor.setter
+    def scaleFactor(self, multiplier):
+        """
+        Multiply the current scale factor by the given value and emit a signal
+        that the scale has changed.
+        """
+        self._scaleFactor *= multiplier
+
+        self.emit(self.scaleChanged)
 
     def setup(self):
         self.setBackgroundRole(QtGui.QPalette.Base)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
-                                       QtGui.QSizePolicy.Maximum)
+                                       QtGui.QSizePolicy.Expanding)
 
         sizePolicy.setHeightForWidth(True)
 
         self.setSizePolicy(sizePolicy)
 
-        self.setScaledContents(True)
+        # self.setScaledContents(True)
+
+    def _scaleImage(self):
+        """
+        Scale the image by self.scaleFactor value.
+        """
+        print self.size() * self.scaleFactor
+        self.resize(self.size() * self.scaleFactor)
+
+        print 'Scale of the images needs to change to %s\n%s'\
+              % (self.scaleFactor, self.image.size())
+
+    def resizeEvent(self, event):
+        print 'resizing %s' % event
+        self.setPixmap(self.comic_pixmap.scaled(
+            self.width(), self.height(),
+            QtCore.Qt.KeepAspectRatioByExpanding
+        ))
 
     def change_image(self, img):
         self.image = QtGui.QImage(img)
@@ -98,7 +133,9 @@ class Viewer(QtGui.QLabel):
 
             log.error('Error in creating the image: %s' % img)
 
-        self.setPixmap(QtGui.QPixmap.fromImage(self.image))
+        self.comic_pixmap = QtGui.QPixmap.fromImage(self.image)
+
+        self.setPixmap(self.comic_pixmap)
 
         self.repaint()
 
@@ -229,11 +266,15 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
         Setup connection for the UI elements.
         """
-        # actions
+        # navigation
         self.action_first.triggered.connect(self.go_to_first)
         self.action_last.triggered.connect(self.go_to_last)
         self.action_next.triggered.connect(self.go_to_next)
         self.action_prev.triggered.connect(self.go_to_prev)
+
+        # image zoom
+        self.action_zoom_in.triggered.connect(self.image_zoom_in)
+        self.action_zoom_out.triggered.connect(self.image_zoom_out)
 
         # comboBox change
         self.cb_pages.currentIndexChanged.connect(self.change_page)
@@ -242,7 +283,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.action_download.triggered.connect(self.show_download_dialog)
 
         # Catch signal from downloader
-        # TODO: Switch all to signals and move the downloader inside this obj
         self.connect(self.downloader,
                      self.downloader.new_comic,
                      self.on_new_comic_available)
@@ -280,7 +320,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         if current is not last:
             self.cb_pages.setCurrentIndex(current)
 
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_prev(self):
         """
@@ -292,7 +332,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         if current is not 0:
             self.cb_pages.setCurrentIndex(current - 1)
 
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_first(self):
         """
@@ -300,7 +340,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_last(self):
         """
@@ -308,9 +348,21 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
-        self._update_actions()
+        self._update_nav_buttons()
 
-    def _update_actions(self):
+    def image_zoom_in(self):
+        """
+        Ask the image to zoom in.
+        """
+        self.viewer.scaleFactor = 1.25
+
+    def image_zoom_out(self):
+        """
+        Ask the image to zoom in.
+        """
+        self.viewer.scaleFactor = 0.8
+
+    def _update_nav_buttons(self):
         """
         Update the navigation elements depending on what images is currently
         shown.
