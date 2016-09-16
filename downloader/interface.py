@@ -81,7 +81,7 @@ class Viewer(QtGui.QLabel):
     def setup(self):
         self.setBackgroundRole(QtGui.QPalette.Base)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
-                                       QtGui.QSizePolicy.Ignored)
+                                       QtGui.QSizePolicy.Maximum)
 
         sizePolicy.setHeightForWidth(True)
 
