@@ -161,15 +161,22 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
+        self.image_scrollArea.setAlignment(QtCore.Qt.AlignHCenter)
+
         # wether the first or last image are shown. Used to update the UI
         # elements
         self._isLastShowing = True
         self._isFirstShowing = True
+
+        # scale factor for the image
         self.scaleFactor = 1.0
 
+        # regex for filename of the comic pages
         self.filename_regex = downloader._img_filename
 
+        # instance of the downloader QThread object
         self.downloader = Downloader(self)
+        # downloader dialog
         self.dialog = Dialog(self, downloaderThread=self.downloader)
 
         # create the image viewer label
@@ -185,12 +192,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Create an instance of the custom QLabel widget.
         """
 
-
         self.imageLabel = QtGui.QLabel()
+        self.imageLabel.setAlignment(QtCore.Qt.AlignHCenter)
+
         self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)
-        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.Ignored,
-                                      QtGui.QSizePolicy.Ignored)
-        self.imageLabel.setScaledContents(True)
+        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.MinimumExpanding,
+                                      QtGui.QSizePolicy.MinimumExpanding)
+        # self.imageLabel.setScaledContents(True)
 
         self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
         self.image_scrollArea.setWidget(self.imageLabel)
@@ -330,12 +338,47 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
 
-            image = QtGui.QImage(filePath)
-            self.imageLabel.setPixmap(QtGui.QPixmap.fromImage(image))
+            self.image = QtGui.QImage(filePath)
+
+            # set the min size of the image relative to the wrapper
+            width, height = self.adjust_page_size()
+            self.imageLabel.setMinimumSize(QtCore.QSize(width, height))
+            self.imageLabel.setMaximumSize(
+                QtCore.QSize(self.image.width(), self.image.height()))
+
+            self.imageLabel.setScaledContents(True)
+
+            self.imageLabel.setPixmap(QtGui.QPixmap.fromImage(self.image))
             self.imageLabel.adjustSize()
             self.scaleFactor = 1.0
 
         self.adjust_scrollbars(self.image_scrollArea.verticalScrollBar(), 1)
+
+    def adjust_page_size(self):
+        """
+        Adjust the page image size into the scroll area wrapper, keeping the
+        correct aspect ratio and return the new width and height values.
+        Setting the sizes on the imageLabel should cause the image to be as
+        large as the widget and the length to be proportional and scrollable if
+        needed.
+
+        :returns: (width, heigth)
+        """
+
+        image = self.image
+        wrapperWidth = self.image_scrollArea.size().width()
+
+        # wrapperHeight = self.image_scrollArea.size().height()
+        imageWidth = float(image.width())
+        imageHeight = float(image.height())
+
+        ratio = float(imageHeight / imageWidth)
+        newHeight = ratio * wrapperWidth
+
+        newWidth = wrapperWidth * 0.9
+        newHeight *= 0.9
+
+        return (newWidth, newHeight)
 
     def adjust_scrollbars(self, scrollbar, factor):
         scrollbar.setValue(int(factor * scrollbar.value()
@@ -355,3 +398,20 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         instead of regenerating the whole list that will use that string.
         """
         self.add_item_to_list(fName)
+
+    def resizeEvent(self, event):
+        super(MainWindow, self).resizeEvent(event)
+        print 'main window resized'
+        self.adjust_page_size()
+
+if __name__ == '__main__':
+    from PyQt4.QtGui import QApplication
+    import sys
+
+    def main():
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
+
+    main()
