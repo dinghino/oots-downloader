@@ -49,7 +49,7 @@ def get_range(homepage='http://www.giantitp.com/Comics.html', directory='.'):
             raise
 
     def _last_downloaded(directory):
-        log.debug('Seraching for the latest downloaded comic index')
+        log.debug('Searching for the latest downloaded comic index')
         try:
             _downloaded = filter(lambda x: _img_filename.match(x),
                                  sorted(os.listdir(directory)))[-1]
