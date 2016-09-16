@@ -66,43 +66,6 @@ class Downloader(QtCore.QThread):
         log.info('Download interrupted by the user.')
 
 
-class Viewer(QtGui.QLabel):
-    def __init__(self, img, parent=None):
-        super(Viewer, self).__init__(parent)
-        self.setup()
-        try:
-            self.image = QtGui.QImage(img)
-        except:
-            self.image = None
-
-        self._imageWidth = None
-        self._imageHeight = None
-
-    def setup(self):
-        self.setBackgroundRole(QtGui.QPalette.Base)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Maximum,
-                                       QtGui.QSizePolicy.Maximum)
-
-        sizePolicy.setHeightForWidth(True)
-
-        self.setSizePolicy(sizePolicy)
-
-        self.setScaledContents(True)
-
-    def change_image(self, img):
-        self.image = QtGui.QImage(img)
-
-        if self.image.isNull():
-            QtGui.QMessageBox.information(self, "Error with the image...",
-                                          "Cannot load %s." % img)
-
-            log.error('Error in creating the image: %s' % img)
-
-        self.setPixmap(QtGui.QPixmap.fromImage(self.image))
-
-        self.repaint()
-
-
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
     """
     QDialog that will handle the downloder functionality.
@@ -198,14 +161,22 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
 
+        self.image_scrollArea.setAlignment(QtCore.Qt.AlignHCenter)
+
         # wether the first or last image are shown. Used to update the UI
         # elements
         self._isLastShowing = True
         self._isFirstShowing = True
 
+        # scale factor for the image
+        self.scaleFactor = 1.0
+
+        # regex for filename of the comic pages
         self.filename_regex = downloader._img_filename
 
+        # instance of the downloader QThread object
         self.downloader = Downloader(self)
+        # downloader dialog
         self.dialog = Dialog(self, downloaderThread=self.downloader)
 
         # create the image viewer label
@@ -221,19 +192,30 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         Create an instance of the custom QLabel widget.
         """
 
-        self.viewer = Viewer(None, parent=self.image_scrollArea)
+        self.imageLabel = QtGui.QLabel()
+        self.imageLabel.setAlignment(QtCore.Qt.AlignHCenter)
+
+        self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)
+        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.Ignored,
+                                      QtGui.QSizePolicy.Ignored)
+        # self.imageLabel.setScaledContents(True)
+
         self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
-        self.image_scrollArea.setWidget(self.viewer)
+        self.image_scrollArea.setWidget(self.imageLabel)
 
     def setup_connection(self):
         """
         Setup connection for the UI elements.
         """
-        # actions
+        # navigation
         self.action_first.triggered.connect(self.go_to_first)
         self.action_last.triggered.connect(self.go_to_last)
         self.action_next.triggered.connect(self.go_to_next)
         self.action_prev.triggered.connect(self.go_to_prev)
+
+        # image zoom
+        self.action_zoom_in.triggered.connect(self.image_zoom_in)
+        self.action_zoom_out.triggered.connect(self.image_zoom_out)
 
         # comboBox change
         self.cb_pages.currentIndexChanged.connect(self.change_page)
@@ -242,7 +224,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.action_download.triggered.connect(self.show_download_dialog)
 
         # Catch signal from downloader
-        # TODO: Switch all to signals and move the downloader inside this obj
         self.connect(self.downloader,
                      self.downloader.new_comic,
                      self.on_new_comic_available)
@@ -280,7 +261,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         if current is not last:
             self.cb_pages.setCurrentIndex(current)
 
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_prev(self):
         """
@@ -292,7 +273,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         if current is not 0:
             self.cb_pages.setCurrentIndex(current - 1)
 
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_first(self):
         """
@@ -300,7 +281,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(0)
-        self._update_actions()
+        self._update_nav_buttons()
 
     def go_to_last(self):
         """
@@ -308,9 +289,26 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         """
 
         self.cb_pages.setCurrentIndex(self.cb_pages.count() - 1)
-        self._update_actions()
+        self._update_nav_buttons()
 
-    def _update_actions(self):
+    def image_zoom_in(self):
+        """
+        Ask the image to zoom in.
+        """
+        self.scaleImage(1.25)
+
+    def image_zoom_out(self):
+        """
+        Ask the image to zoom in.
+        """
+        self.scaleImage(0.8)
+
+    def scaleImage(self, factor):
+        self.scaleFactor *= factor
+        self.imageLabel.resize(
+            self.scaleFactor * self.imageLabel.pixmap().size())
+
+    def _update_nav_buttons(self):
         """
         Update the navigation elements depending on what images is currently
         shown.
@@ -340,9 +338,46 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
         if filePath is not None:
             log.debug('Loading page"%s"' % filePath)
-            self.viewer.change_image(filePath)
+
+            self.image = QtGui.QImage(filePath)
+
+            # set the min size of the image relative to the wrapper
+            width, height = self.adjust_page_size()
+            self.imageLabel.setMinimumSize(QtCore.QSize(width, height))
+            self.imageLabel.setMaximumSize(
+                QtCore.QSize(self.image.width(), self.image.height()))
+
+            self.imageLabel.setScaledContents(True)
+
+            self.imageLabel.setPixmap(QtGui.QPixmap.fromImage(self.image))
+            self.imageLabel.adjustSize()
+            self.scaleFactor = 1.0
 
         self.adjust_scrollbars(self.image_scrollArea.verticalScrollBar(), 1)
+
+    def adjust_page_size(self):
+        """
+        Adjust the page image size into the scroll area wrapper, keeping the
+        correct aspect ratio and return the new width and height values.
+        Setting the sizes on the imageLabel should cause the image to be as
+        large as the widget and the length to be proportional and scrollable if
+        needed.
+
+        :returns: (width, heigth)
+        """
+
+        image = self.image
+        wrapperWidth = self.image_scrollArea.size().width()
+
+        imageWidth = float(image.width())
+        imageHeight = float(image.height())
+
+        newHeight = wrapperWidth * float(imageHeight / imageWidth)
+
+        newHeight = newHeight if newHeight < imageHeight else imageHeight
+        newWidth = wrapperWidth if wrapperWidth < imageWidth else imageWidth
+
+        return (newWidth, newHeight)
 
     def adjust_scrollbars(self, scrollbar, factor):
         scrollbar.setValue(int(factor * scrollbar.value()
@@ -362,3 +397,19 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         instead of regenerating the whole list that will use that string.
         """
         self.add_item_to_list(fName)
+
+    def resizeEvent(self, event):
+        super(MainWindow, self).resizeEvent(event)
+        self.adjust_page_size()
+
+if __name__ == '__main__':
+    from PyQt4.QtGui import QApplication
+    import sys
+
+    def main():
+        app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec_())
+
+    main()
