@@ -196,8 +196,8 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         self.imageLabel.setAlignment(QtCore.Qt.AlignHCenter)
 
         self.imageLabel.setBackgroundRole(QtGui.QPalette.Base)
-        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.MinimumExpanding,
-                                      QtGui.QSizePolicy.MinimumExpanding)
+        self.imageLabel.setSizePolicy(QtGui.QSizePolicy.Ignored,
+                                      QtGui.QSizePolicy.Ignored)
         # self.imageLabel.setScaledContents(True)
 
         self.image_scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
@@ -305,7 +305,8 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
     def scaleImage(self, factor):
         self.scaleFactor *= factor
-        self.imageLabel.resize(self.scaleFactor * self.imageLabel.pixmap().size())
+        self.imageLabel.resize(
+            self.scaleFactor * self.imageLabel.pixmap().size())
 
     def _update_nav_buttons(self):
         """
@@ -368,15 +369,13 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         image = self.image
         wrapperWidth = self.image_scrollArea.size().width()
 
-        # wrapperHeight = self.image_scrollArea.size().height()
         imageWidth = float(image.width())
         imageHeight = float(image.height())
 
-        ratio = float(imageHeight / imageWidth)
-        newHeight = ratio * wrapperWidth
+        newHeight = wrapperWidth * float(imageHeight / imageWidth)
 
-        newWidth = wrapperWidth * 0.9
-        newHeight *= 0.9
+        newHeight = newHeight if newHeight < imageHeight else imageHeight
+        newWidth = wrapperWidth if wrapperWidth < imageWidth else imageWidth
 
         return (newWidth, newHeight)
 
@@ -401,7 +400,6 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
     def resizeEvent(self, event):
         super(MainWindow, self).resizeEvent(event)
-        print 'main window resized'
         self.adjust_page_size()
 
 if __name__ == '__main__':
