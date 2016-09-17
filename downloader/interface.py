@@ -400,7 +400,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         newHeight = newHeight if newHeight < imageHeight else imageHeight
         newWidth = wrapperWidth if wrapperWidth < imageWidth else imageWidth
 
-        return (newWidth, newHeight)
+        return (newWidth * 0.9, newHeight * 0.9)
 
     def adjust_scrollbars(self, scrollbar, factor):
         scrollbar.setValue(int(factor * scrollbar.value()
