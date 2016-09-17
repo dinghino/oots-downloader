@@ -18,6 +18,7 @@ class Downloader(QtCore.QThread):
         self.download_start = QtCore.SIGNAL('download_start(int)')
         self.new_comic = QtCore.SIGNAL('new_comic_available(QString)')
         self.download_stop = QtCore.SIGNAL('download_stop()')
+        self.download_finish = QtCore.SIGNAL('download_finish()')
 
     def __del__(self):
         self.wait()
@@ -37,14 +38,17 @@ class Downloader(QtCore.QThread):
         self.emit(self.download_start, comic_to_download)
 
         log.info('Beginning download... last comic downloaded: %s, latest: %s'
-                 ', to download: %s' % (last_downloaded - 1, last_available,
-                                        last_available - last_downloaded - 1))
+                 ', to download: %s' % (last_downloaded, last_available,
+                                        range(last_downloaded, last_available)))
 
         # while self._isRunning is True and we haven't reached the end of the
         # available comic pages keep downloading and saving the images
         for i in range(last_downloaded, last_available):
             if self._isRunning is False:
                 # stop the cycle if the user call for a stop.
+                break
+
+            if len(range(last_downloaded, last_available)) == 0:
                 break
 
             # get the image from the website and save it locally
@@ -58,12 +62,17 @@ class Downloader(QtCore.QThread):
             # notify that a new file is available to other app components
             self.emit(self.new_comic, fileName)
 
-    def stop(self):
         self._isRunning = False
-        self.terminate()
-        self.emit(self.download_stop)
+        self.emit(self.download_finish)
 
-        log.info('Download interrupted by the user.')
+    def stop(self):
+        if self._isRunning:
+            log.info('Download interrupted')
+            self._isRunning = False
+            self.terminate()
+            self.emit(self.download_stop)
+
+        log.info('Download thread closed.')
 
 
 class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
@@ -95,12 +104,16 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
                      self.downloader.new_comic,
                      self.on_download_new_comic)
 
+        self.connect(self.downloader,
+                     self.downloader.download_finish,
+                     self.on_download_finish)
+
     def hideEvent(self, event):
         """Override the default close event to also stop the downloader. """
         self.stop_downloader()
         event.accept()
 
-    def on_download_start(self, total):
+    def reset_dialog_content(self, total):
         """
         Called when the downloader starts to download and pass the total pages
         to download.
@@ -112,6 +125,10 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         # update the values for the progress bar
         self.download_progress.setMaximum(total)
         self.download_progress.setValue(0)
+        self.label_notifier.setText('Comics up to date...')
+
+    def on_download_start(self, total):
+        self.reset_dialog_content(total)
 
     def on_download_new_comic(self, fileName):
         """
@@ -134,6 +151,11 @@ class Dialog(QtGui.QDialog, dialog.Ui_dialog_downloading):
         Called when the download finishes to download.
         """
         self.pb_abort.setEnabled(True)
+        self.pb_abort.setText('&Close')
+        self.close()
+
+    def on_download_finish(self):
+        self.reset_dialog_content(0)
         self.close()
 
     def abort(self):
@@ -305,6 +327,7 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
 
     def scaleImage(self, factor):
         self.scaleFactor *= factor
+
         self.imageLabel.resize(
             self.scaleFactor * self.imageLabel.pixmap().size())
 
@@ -369,8 +392,8 @@ class MainWindow(QtGui.QMainWindow, mainwindow.Ui_MainWindow):
         image = self.image
         wrapperWidth = self.image_scrollArea.size().width()
 
-        imageWidth = float(image.width())
-        imageHeight = float(image.height())
+        imageWidth = float(image.width()) * self.scaleFactor
+        imageHeight = float(image.height()) * self.scaleFactor
 
         newHeight = wrapperWidth * float(imageHeight / imageWidth)
 
