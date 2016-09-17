@@ -54,6 +54,6 @@ class Ui_dialog_downloading(object):
 
     def retranslateUi(self, dialog_downloading):
         dialog_downloading.setWindowTitle(_translate("dialog_downloading", "Downloading new comics...", None))
-        self.label_notifier.setText(_translate("dialog_downloading", "notifier", None))
+        self.label_notifier.setText(_translate("dialog_downloading", "Comics up to date...", None))
         self.pb_abort.setText(_translate("dialog_downloading", "&Abort", None))
 
